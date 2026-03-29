@@ -1,5 +1,5 @@
 from flask import Flask, request
-from twilio.twiml.messaging_response import MessagingResponse
+from twilio.rest import Client
 from claude import generate_response
 from dotenv import load_dotenv
 import os
@@ -9,18 +9,22 @@ load_dotenv()
 
 app = Flask(__name__)
 
+twilio_client = Client(
+    os.getenv("TWILIO_ACCOUNT_SID"),
+    os.getenv("TWILIO_AUTH_TOKEN")
+)
+
 def process_and_respond(sender, message):
-    from twilio.rest import Client
-    ai_response = generate_response(message)
-    client = Client(
-        os.getenv("TWILIO_ACCOUNT_SID"),
-        os.getenv("TWILIO_AUTH_TOKEN")
-    )
-    client.messages.create(
-        from_=os.getenv("TWILIO_WHATSAPP_NUMBER"),
-        to=sender,
-        body=ai_response
-    )
+    try:
+        ai_response = generate_response(message)
+        twilio_client.messages.create(
+            from_=os.getenv("TWILIO_WHATSAPP_NUMBER"),
+            to=sender,
+            body=ai_response
+        )
+        print(f"Réponse envoyée à {sender}")
+    except Exception as e:
+        print(f"Erreur : {e}")
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
