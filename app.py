@@ -3,21 +3,36 @@ from twilio.twiml.messaging_response import MessagingResponse
 from claude import generate_response
 from dotenv import load_dotenv
 import os
+import threading
 
 load_dotenv()
 
 app = Flask(__name__)
+
+def process_and_respond(sender, message):
+    from twilio.rest import Client
+    ai_response = generate_response(message)
+    client = Client(
+        os.getenv("TWILIO_ACCOUNT_SID"),
+        os.getenv("TWILIO_AUTH_TOKEN")
+    )
+    client.messages.create(
+        from_=os.getenv("TWILIO_WHATSAPP_NUMBER"),
+        to=sender,
+        body=ai_response
+    )
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
     incoming_message = request.form.get("Body", "").strip()
     sender = request.form.get("From", "")
     print(f"Message reçu de {sender} : {incoming_message}")
-    ai_response = generate_response(incoming_message)
-    print(f"Réponse générée : {ai_response}")
-    response = MessagingResponse()
-    response.message(ai_response)
-    return str(response)
+    thread = threading.Thread(
+        target=process_and_respond,
+        args=(sender, incoming_message)
+    )
+    thread.start()
+    return "OK", 200
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
